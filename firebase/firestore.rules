@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read and write only their own profile.
+    // Optional: prevent username change after first set (uncomment the condition).
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Prevent changing username once set (optional, enforce in app too):
+      // allow update: if request.auth.uid == userId
+      //   && (resource.data.username == null || resource.data.username == request.resource.data.username);
+    }
+
+    match /users/{userId}/chats/{chatId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Usernames: one document per username, value = { uid }.
+    // Anyone authenticated can read (to check availability).
+    // Only create allowed; creator must set uid to their own auth.uid. No update/delete.
+    match /usernames/{username} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

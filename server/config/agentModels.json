@@ -1,0 +1,8 @@
+{
+  "arcee": { "models": ["arcee-ai/trinity-large-preview:free", "upstage/solar-pro-3:free", "liquid/lfm-2.5-1.2b-thinking:free"] },
+  "solar": { "models": ["upstage/solar-pro-3:free", "arcee-ai/trinity-large-preview:free", "liquid/lfm-2.5-1.2b-thinking:free"] },
+  "liquid": { "models": ["liquid/lfm-2.5-1.2b-thinking:free", "arcee-ai/trinity-large-preview:free", "upstage/solar-pro-3:free"] },
+  "qwen": { "models": ["qwen/qwen3-next-80b-a3b-instruct:free", "arcee-ai/trinity-large-preview:free", "upstage/solar-pro-3:free"] },
+  "nemotron": { "models": ["nvidia/nemotron-3-nano-30b-a3b:free", "liquid/lfm-2.5-1.2b-thinking:free", "arcee-ai/trinity-large-preview:free"] },
+  "vision": { "models": ["google/gemini-2.0-flash-exp:free"] }
+}

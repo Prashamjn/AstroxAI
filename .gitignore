@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Env and secrets (never commit API keys)
+.env
+.env.local
+.env.*.local
+
+# Build
+dist/
+build/
+
+# Logs and OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

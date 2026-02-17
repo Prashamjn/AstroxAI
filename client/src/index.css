@@ -1,0 +1,363 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a0e;
+  --bg-secondary: #12121a;
+  --bg-tertiary: #1a1a24;
+  --text-primary: #e4e4e7;
+  --text-muted: #71717a;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] {
+  --bg-primary: #fbf6ef;
+  --bg-secondary: #fffaf3;
+  --bg-tertiary: #f4ebe1;
+  --text-primary: #1f2430;
+  --text-muted: #6b6670;
+  --accent: #4f46e5;
+  --accent-hover: #6366f1;
+  --border: rgba(31, 36, 48, 0.12);
+}
+
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-white\/90,
+[data-theme="light"] .text-white\/80,
+[data-theme="light"] .text-white\/70,
+[data-theme="light"] .text-white\/60 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .text-\[var\(--text-muted\)\] {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="light"] .bg-white\/5 {
+  background-color: rgba(31, 36, 48, 0.04) !important;
+}
+
+[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(31, 36, 48, 0.07) !important;
+}
+
+[data-theme="light"] .bg-white\/\[0\.03\] {
+  background-color: rgba(31, 36, 48, 0.04) !important;
+}
+
+[data-theme="light"] .bg-white\/\[0\.04\] {
+  background-color: rgba(31, 36, 48, 0.05) !important;
+}
+
+[data-theme="light"] .bg-white\/\[0\.06\] {
+  background-color: rgba(31, 36, 48, 0.06) !important;
+}
+
+[data-theme="light"] .border-white\/10 {
+  border-color: rgba(31, 36, 48, 0.12) !important;
+}
+
+[data-theme="light"] .border-white\/\[0\.08\] {
+  border-color: rgba(31, 36, 48, 0.12) !important;
+}
+
+[data-theme="light"] .placeholder\:text-zinc-500::placeholder {
+  color: rgba(107, 102, 112, 0.75) !important;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0a0a0e;
+  --bg-secondary: #12121a;
+  --bg-tertiary: #1a1a24;
+  --text-primary: #e4e4e7;
+  --text-muted: #71717a;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Prism code blocks inside markdown */
+pre[class*="language-"] {
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  background: #1e1e2e !important;
+}
+
+code[class*="language-"],
+pre[class*="language-"] {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* Inline code */
+.markdown-body code:not(pre code) {
+  background: var(--bg-tertiary);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+.markdown-body pre {
+  margin: 0.75rem 0;
+}
+
+.markdown-body p {
+  margin: 0.5rem 0;
+}
+
+.markdown-body ul, .markdown-body ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  margin: 1rem 0 0.5rem;
+  font-weight: 600;
+}
+
+.markdown-body blockquote {
+  margin: 0.75rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--text-muted);
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a36;
+}
+
+/* Typing cursor */
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.typing-cursor::after {
+  content: "▌";
+  animation: blink 1s step-end infinite;
+  color: var(--accent);
+}
+
+/* Typing dots animation */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dot-2 {
+  animation-delay: 0.2s;
+}
+
+.typing-dot-3 {
+  animation-delay: 0.4s;
+}
+
+/* ========== Loading screen ========== */
+.loading-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+  animation: loading-orb-float 8s ease-in-out infinite;
+}
+
+.loading-orb-1 {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, transparent 70%);
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation-delay: 0s;
+}
+
+.loading-orb-2 {
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+  bottom: 10%;
+  left: 15%;
+  animation-delay: -2s;
+}
+
+.loading-orb-3 {
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+  bottom: 20%;
+  right: 20%;
+  animation-delay: -4s;
+}
+
+@keyframes loading-orb-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(10px, -15px) scale(1.05); }
+  66% { transform: translate(-8px, 10px) scale(0.98); }
+}
+
+.loading-logo {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  letter-spacing: -0.02em;
+}
+
+.loading-logo-text {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: 0.02em;
+  animation: loading-text-in 0.8s ease-out;
+}
+
+.loading-logo-accent {
+  font-size: 2.25rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #6366f1 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: loading-text-in 0.8s ease-out 0.1s both, loading-gradient-shift 4s ease-in-out infinite;
+}
+
+@keyframes loading-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loading-gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.loading-bar-progress {
+  width: 30%;
+  animation: loading-bar 1.6s ease-in-out infinite;
+}
+
+/* User message bubble background in light theme */
+[data-theme="light"] .bg-gradient-to-br.from-indigo-600\/90.to-purple-600\/90 {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.9), rgba(129, 230, 217, 0.9)) !important;
+}
+
+/* Send button background in light theme */
+[data-theme="light"] .bg-\[var\(--accent\)\] {
+  background-color: #4f46e5 !important;
+}
+
+[data-theme="light"] .hover\:bg-\[var\(--accent-hover\)\]:hover {
+  background-color: #6366f1 !important;
+}
+
+/* Selected agent button background in light theme (same as send button hover) */
+[data-theme="light"] .bg-indigo-600\/80 {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.9), rgba(129, 230, 217, 0.9)) !important;
+  border-color: rgba(129, 230, 217, 0.5) !important;
+}
+
+/* Other buttons with indigo backgrounds in light theme (change to same gradient) */
+[data-theme="light"] .bg-indigo-600 {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.9), rgba(129, 230, 217, 0.9)) !important;
+}
+
+[data-theme="light"] .hover\:bg-indigo-500:hover {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.85), rgba(129, 230, 217, 0.85)) !important;
+}
+
+/* Selected dropdown items in light theme */
+[data-theme="light"] .bg-indigo-500\/10 {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.15), rgba(129, 230, 217, 0.15)) !important;
+}
+
+[data-theme="light"] .bg-indigo-500\/20 {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.2), rgba(129, 230, 217, 0.2)) !important;
+}
+
+[data-theme="light"] .light-mint-primary {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.9), rgba(129, 230, 217, 0.9)) !important;
+  border-color: rgba(129, 230, 217, 0.5) !important;
+}
+
+[data-theme="light"] .light-mint-primary:hover {
+  opacity: 0.9 !important;
+}
+
+[data-theme="light"] .light-mint-secondary {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.25), rgba(129, 230, 217, 0.25)) !important;
+  border-color: rgba(129, 230, 217, 0.35) !important;
+  color: rgba(31, 36, 48, 0.95) !important;
+}
+
+[data-theme="light"] .light-mint-secondary:hover {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.32), rgba(129, 230, 217, 0.32)) !important;
+}
+
+/* Ensure both user message and send button use same background in light theme */
+[data-theme="light"] .user-message-bg {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.9), rgba(129, 230, 217, 0.9)) !important;
+}
+
+[data-theme="light"] .send-button-bg {
+  background: linear-gradient(to bottom right, rgba(52, 211, 153, 0.9), rgba(129, 230, 217, 0.9)) !important;
+}
+
+[data-theme="light"] .send-button-bg:hover {
+  opacity: 0.9 !important;
+}

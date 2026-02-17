@@ -1,0 +1,16 @@
+{
+  "router": {
+    "alpha": 0.35,
+    "beta": 0.15,
+    "diversity_weight": 0.1
+  },
+  "exploration": {
+    "forced_interval": 25,
+    "prompt_mutation_interval": 100
+  },
+  "scoring": {
+    "novelty_bonus": 0.2,
+    "chunk_limit": 12,
+    "diversity_penalty_weight": 0.2
+  }
+}
