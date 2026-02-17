@@ -9,11 +9,11 @@ import { agents, agentEnvKeys, routableAgentIds } from "../agents.js";
 import * as PromptManager from "../lib/PromptManager.js";
 import * as ModelRouter from "../lib/ModelRouter.js";
 import { selectAgentEmbeddingPlusBandit } from "../lib/AdaptiveRouter.js";
-import { computeUcbScores } from "../lib/AdaptiveRouter.js";
 import { embedText } from "../lib/Embeddings.js";
 import { evaluateResponse, computeOverallScore } from "../lib/Evaluator.js";
-import { computeUcbV2, selectTopKAgents, forceExploration } from "../lib/RouterV2.js";
+import { computeUcbV2, selectTopKAgents, forceExploration, normalizeScoresMinMax } from "../lib/RouterV2.js";
 import { shouldForceExploration } from "../lib/DiversityEngine.js";
+import { detectFormatIntent, buildFormatConstraint } from "../astroxai/core/FormatIntent.js";
 import {
   insertAgentScore,
   insertCollabRun,
@@ -135,6 +135,9 @@ router.post("/", async (req, res) => {
   const lang = detectLanguage(userText);
   const langInstruction = LANGUAGE_SYSTEM_MESSAGES[lang] || LANGUAGE_SYSTEM_MESSAGES.english;
 
+  const fmtIntent = await detectFormatIntent(userText);
+  const formatConstraint = buildFormatConstraint(fmtIntent?.format);
+
   // Build messages for API; if imageUrls provided, turn last user message into multimodal content (text + images)
   const messagesToSend = messages.map((m) => ({ role: m.role, content: m.content }));
   if (Array.isArray(imageUrls) && imageUrls.length > 0 && messagesToSend.length > 0) {
@@ -157,23 +160,23 @@ router.post("/", async (req, res) => {
 
     // Decide whether to use swarm/collaboration for low confidence
     const statsRows = getAgentStats();
-    const ucbLegacy = computeUcbScores(statsRows);
+    const interactionCount = getInteractionCount();
+    const usageCounts = {};
+    for (const r of statsRows) usageCounts[String(r.agent_name)] = Number(r.pulls) || 0;
+    const noveltyScores = {};
+    const rawUcb = await computeUcbV2(statsRows, noveltyScores, usageCounts, { T: interactionCount });
+    const ucbNorm = normalizeScoresMinMax(rawUcb);
+
     const useSwarm =
       Boolean(forceSwarm) ||
       forceSwarmByPrefix ||
-      shouldUseSwarm({ reason: autoRoute.reason, ucbScores: ucbLegacy });
+      shouldUseSwarm({ reason: autoRoute.reason, ucbScores: ucbNorm });
 
     if (useSwarm) {
-      // RouterV2: UCB + diversity bonus; novelty defaults to 0 if embeddings unavailable.
-      const usageCounts = {};
-      for (const r of statsRows) usageCounts[String(r.agent_name)] = Number(r.pulls) || 0;
-
-      const noveltyScores = {};
-      const ucbV2 = computeUcbV2(statsRows, noveltyScores, usageCounts);
-      collabAgents = selectTopKAgents(ucbV2, 3);
+      // RouterV2: select top-K using normalized UCB scores.
+      collabAgents = selectTopKAgents(ucbNorm, 3);
 
       // Forced exploration: every N interactions, ensure lowest-used agent is included.
-      const interactionCount = getInteractionCount();
       if (shouldForceExploration(interactionCount, 25)) {
         const forced = forceExploration(usageCounts);
         if (forced && !collabAgents.includes(forced)) {
@@ -205,8 +208,8 @@ router.post("/", async (req, res) => {
   const agentSystemPrompt = PromptManager.getSystemPrompt(agentId);
   const override = typeof systemPromptOverride === "string" ? systemPromptOverride.trim() : "";
   const fullSystemPrompt = override
-    ? `${agentSystemPrompt}\n\n[Chat Override]\n${override}\n\n${langInstruction}`
-    : `${agentSystemPrompt}\n\n${langInstruction}`;
+    ? `${agentSystemPrompt}\n\n[Chat Override]\n${override}\n\n${langInstruction}${formatConstraint ? `\n\n${formatConstraint}` : ""}`
+    : `${agentSystemPrompt}\n\n${langInstruction}${formatConstraint ? `\n\n${formatConstraint}` : ""}`;
   const messagesWithPrompt = [
     { role: "system", content: fullSystemPrompt },
     ...messagesToSend.map((m) => ({ role: m.role, content: m.content })),
@@ -239,6 +242,10 @@ router.post("/", async (req, res) => {
   // Always send responseId so client can attach feedback
   writeResponse({ responseId });
 
+  if (fmtIntent?.format) {
+    writeResponse({ formatIntent: fmtIntent });
+  }
+
   if (Array.isArray(collabAgents) && collabAgents.length > 0) {
     writeResponse({ collabAgents });
   }
@@ -252,7 +259,7 @@ router.post("/", async (req, res) => {
       const collab = await runCollaboration({
         agentsToUse: collabAgents,
         messagesToSend: messagesToSend,
-        systemPromptOverride: override,
+        systemPromptOverride: `${override}${formatConstraint ? `\n\n${formatConstraint}` : ""}`.trim(),
         langInstruction,
       });
 

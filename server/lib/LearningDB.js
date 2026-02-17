@@ -46,9 +46,15 @@ function ensureSchema() {
     CREATE TABLE IF NOT EXISTS agent_stats (
       agent_name TEXT PRIMARY KEY,
       pulls INTEGER NOT NULL DEFAULT 0,
-      mean_reward REAL NOT NULL DEFAULT 0
+      mean_reward REAL NOT NULL DEFAULT 0,
+      reward_ema REAL
     );
   `);
+
+  // Backward-compatible migration for older DBs
+  try {
+    db.run("ALTER TABLE agent_stats ADD COLUMN reward_ema REAL;");
+  } catch {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS user_feedback (
@@ -177,6 +183,23 @@ function ensureSchema() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_interaction_v2_response ON interaction_v2(response_id);
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS agent_reward_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      response_id TEXT,
+      user_id TEXT,
+      agent_name TEXT NOT NULL,
+      raw_feedback INTEGER,
+      contribution REAL,
+      reward REAL,
+      timestamp TEXT NOT NULL
+    );
+  `);
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_agent_reward_log_time ON agent_reward_log(timestamp);
+  `);
 }
 
 async function loadDbFile() {
@@ -212,6 +235,71 @@ export async function initLearningDB() {
 function requireDb() {
   if (!db) throw new Error("LearningDB not initialized. Call initLearningDB() at startup.");
   return db;
+}
+
+export async function insertAgentRewardLog({
+  responseId = null,
+  userId = null,
+  agentName,
+  rawFeedback = null,
+  contribution = null,
+  reward = null,
+  timestamp = nowIso(),
+}) {
+  requireDb();
+  const stmt = db.prepare(
+    "INSERT INTO agent_reward_log(response_id, user_id, agent_name, raw_feedback, contribution, reward, timestamp) VALUES(?, ?, ?, ?, ?, ?, ?);"
+  );
+  stmt.run([
+    responseId ? String(responseId) : null,
+    userId ? String(userId) : null,
+    String(agentName || ""),
+    rawFeedback,
+    contribution,
+    reward,
+    String(timestamp || nowIso()),
+  ]);
+  stmt.free();
+  await saveDbFile();
+}
+
+export function getInteractionV2ByResponseId(responseId) {
+  requireDb();
+  const rid = String(responseId || "").trim();
+  if (!rid) return null;
+  const stmt = db.prepare(
+    "SELECT response_id, user_id, query, agent_responses_json, ucb_scores_json, coherence_scores_json, novelty_scores_json, chunk_scores_json, selected_chunks_json, final_answer, feedback, timestamp FROM interaction_v2 WHERE response_id = ? LIMIT 1;"
+  );
+  stmt.bind([rid]);
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+
+export function getAgentRewardLogByResponseId(responseId) {
+  requireDb();
+  const rid = String(responseId || "").trim();
+  if (!rid) return [];
+  const rows = [];
+  const stmt = db.prepare(
+    "SELECT agent_name, raw_feedback, contribution, reward, timestamp FROM agent_reward_log WHERE response_id = ? ORDER BY id ASC;"
+  );
+  stmt.bind([rid]);
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+export function getRecentAgentRewardLog(limit = 200) {
+  requireDb();
+  const rows = [];
+  const stmt = db.prepare(
+    "SELECT response_id, user_id, agent_name, raw_feedback, contribution, reward, timestamp FROM agent_reward_log ORDER BY id DESC LIMIT ?;"
+  );
+  stmt.bind([limit]);
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
 }
 
 export async function insertAgentScore(row) {
@@ -516,23 +604,30 @@ export function getFeedbackStats(limit = 5000) {
 export async function upsertAgentStats(agentName, reward) {
   requireDb();
   const r = Math.max(0, Math.min(1, Number(reward)));
+  const gamma = Math.max(0.01, Math.min(0.5, Number(process.env.REWARD_EMA_GAMMA || 0.2)));
 
-  const sel = db.prepare("SELECT pulls, mean_reward FROM agent_stats WHERE agent_name = ?;");
+  const sel = db.prepare("SELECT pulls, mean_reward, reward_ema FROM agent_stats WHERE agent_name = ?;");
   sel.bind([agentName]);
   const existing = sel.step() ? sel.getAsObject() : null;
   sel.free();
 
   if (!existing) {
-    const ins = db.prepare("INSERT INTO agent_stats(agent_name, pulls, mean_reward) VALUES(?, 1, ?);");
-    ins.run([agentName, r]);
+    const ins = db.prepare(
+      "INSERT INTO agent_stats(agent_name, pulls, mean_reward, reward_ema) VALUES(?, 1, ?, ?);"
+    );
+    ins.run([agentName, r, r]);
     ins.free();
   } else {
     const pulls = Number(existing.pulls) || 0;
     const mean = Number(existing.mean_reward) || 0;
+    const ema = existing.reward_ema == null ? mean : Number(existing.reward_ema);
     const nextPulls = pulls + 1;
     const nextMean = mean + (r - mean) / nextPulls;
-    const upd = db.prepare("UPDATE agent_stats SET pulls = ?, mean_reward = ? WHERE agent_name = ?;");
-    upd.run([nextPulls, nextMean, agentName]);
+    const nextEma = (1 - gamma) * (Number.isFinite(ema) ? ema : nextMean) + gamma * r;
+    const upd = db.prepare(
+      "UPDATE agent_stats SET pulls = ?, mean_reward = ?, reward_ema = ? WHERE agent_name = ?;"
+    );
+    upd.run([nextPulls, nextMean, nextEma, agentName]);
     upd.free();
   }
 
@@ -626,7 +721,7 @@ export async function insertResponseFeedback({ responseId, userId = null, agentN
 export function getAgentStats() {
   requireDb();
   const res = [];
-  const stmt = db.prepare("SELECT agent_name, pulls, mean_reward FROM agent_stats;");
+  const stmt = db.prepare("SELECT agent_name, pulls, mean_reward, reward_ema FROM agent_stats;");
   while (stmt.step()) res.push(stmt.getAsObject());
   stmt.free();
   return res;

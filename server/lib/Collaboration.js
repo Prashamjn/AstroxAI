@@ -2,9 +2,9 @@ import OpenAI from "openai";
 import { agents, agentEnvKeys } from "../agents.js";
 import * as PromptManager from "./PromptManager.js";
 import { getAgentStats } from "./LearningDB.js";
-import { computeUcbScores } from "./AdaptiveRouter.js";
 import { computeCoherence, computeNovelty } from "./ChunkScorer.js";
 import { synthesizeV2 } from "./SynthesizerV2.js";
+import { computeUcbV2, normalizeScoresMinMax } from "./RouterV2.js";
 
 function getApiKeyForAgent(agentId) {
   const envKey = agentEnvKeys[agentId];
@@ -69,9 +69,8 @@ export async function runCollaboration({
     };
   }
 
-  // 2) Collect agent-level scores: UCB + factual + coherence + novelty
+  // 2) Collect agent-level scores: UCB(v2, normalized per request) + factual + coherence + novelty
   const statsRows = getAgentStats();
-  const ucbScores = computeUcbScores(statsRows);
   const factualByAgent = {};
   for (const r of statsRows) factualByAgent[String(r.agent_name)] = clamp01(r.mean_reward, 0.5);
 
@@ -79,6 +78,12 @@ export async function runCollaboration({
     const lastUser = [...messagesToSend].reverse().find((m) => m.role === "user");
     return lastUser?.content ? String(lastUser.content) : "";
   })();
+
+  const usageCounts = {};
+  for (const r of statsRows) usageCounts[String(r.agent_name)] = Math.max(0, Number(r.pulls) || 0);
+  const noveltyForRouting = {};
+  const rawUcb = await computeUcbV2(statsRows, noveltyForRouting, usageCounts, { T: 0 });
+  const ucbScores = normalizeScoresMinMax(rawUcb);
 
   const allResponses = goodAnswers.map((a) => String(a.answer || ""));
   const enriched = await Promise.all(
@@ -90,7 +95,7 @@ export async function runCollaboration({
       return {
         agent_name: a.agentId,
         response,
-        ucb_score: clamp01(ucbScores[a.agentId] ?? 0.5, 0.5),
+        ucb_score: Number(ucbScores[a.agentId] ?? 0.0),
         factual_score: clamp01(factualByAgent[a.agentId] ?? 0.5, 0.5),
         coherence_score: clamp01(coherence, 0.5),
         novelty_score: Math.max(0, Number(novelty) || 0),
@@ -98,8 +103,34 @@ export async function runCollaboration({
     })
   );
 
+  // Diversity penalty: penalize agents whose outputs are near-identical.
+  // Here we approximate similarity as (1 - novelty_score). Higher similarity => larger penalty.
+  const diversityPenaltyWeight = Number(process.env.DIVERSITY_PENALTY_WEIGHT || 0.2);
+  const enrichedWithPenalty = enriched.map((e) => {
+    const similarity = 1 - Math.max(0, Math.min(1, Number(e.novelty_score) || 0));
+    const penalty = diversityPenaltyWeight * similarity;
+    return {
+      ...e,
+      ucb_score: Number(e.ucb_score) - penalty,
+    };
+  });
+
   // 3) Synthesizer v2: chunk-level weighted merge + single coherence pass
-  const synthesizerId = agents.arcee ? "arcee" : goodAnswers[0].agentId;
+  const availableSynths = enrichedWithPenalty
+    .map((e) => e.agent_name)
+    .filter((id) => {
+      const key = getApiKeyForAgent(id);
+      return Boolean(key) && key !== "YOUR_SECRET_KEY" && Boolean(agents[id]);
+    });
+
+  const bestFactual = [...enrichedWithPenalty]
+    .filter((e) => availableSynths.includes(e.agent_name))
+    .sort((a, b) => (b.factual_score || 0) - (a.factual_score || 0))[0]?.agent_name;
+
+  const synthesizerId =
+    bestFactual ||
+    (agents.arcee && getApiKeyForAgent("arcee") && getApiKeyForAgent("arcee") !== "YOUR_SECRET_KEY" ? "arcee" : null) ||
+    goodAnswers[0].agentId;
   const synthKey = getApiKeyForAgent(synthesizerId);
   const synthModel = agents[synthesizerId];
 
@@ -118,7 +149,7 @@ export async function runCollaboration({
     });
   };
 
-  const synth = await synthesizeV2(enriched, llmCall);
+  const synth = await synthesizeV2(enrichedWithPenalty, llmCall, { query: promptText, usageCounts });
   const finalAnswer = typeof synth === "string" ? synth : String(synth?.finalAnswer || "");
 
   return {
@@ -127,7 +158,7 @@ export async function runCollaboration({
     synthesizerId,
     finalAnswer,
     v2: {
-      agentInputs: enriched,
+      agentInputs: enrichedWithPenalty,
       ucbScores,
       synth,
     },

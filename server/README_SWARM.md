@@ -30,6 +30,61 @@ On top of that, AstroxAI includes a simple diversity mechanism:
 
 This helps prevent the system from always selecting the same “safe” agent.
 
+## Engineering notes (bandit + synthesis details)
+
+### UCB is not clamped
+
+UCB values are **not** clamped to `[0, 1]`. Exploration bonuses can push UCB above `1.0`, which is expected.
+
+### Per-request UCB normalization
+
+Raw UCB scores are normalized per request using min-max scaling:
+
+`ucb_norm_i = (ucb_i - min_ucb) / (max_ucb - min_ucb + eps)`
+
+This preserves exploration while keeping the swarm confidence and ranking comparable across requests.
+
+### Alpha decay
+
+Exploration strength decays over time:
+
+- `alpha(T) = alpha0 * (alpha_decay ^ T)`
+
+Where `T` is the interaction count.
+
+Environment variables:
+
+- `ROUTER_ALPHA` (default `1.0`)
+- `ROUTER_ALPHA_DECAY` (default `0.999`)
+
+### Reward recency (EMA)
+
+Agent reward tracking uses an exponential moving average (EMA) so older mistakes fade out:
+
+`reward_ema = (1 - gamma) * reward_ema + gamma * new_reward`
+
+- `REWARD_EMA_GAMMA` default is `0.2` (range clamped to `[0.01, 0.5]`).
+
+The router uses `reward_ema` when present; otherwise it falls back to `mean_reward`.
+
+### Synthesizer v2: per-chunk relevance
+
+Chunk selection uses **per-chunk relevance**, not just agent-level scores.
+
+- `chunk_relevance = cosine(embed(chunk), embed(query))`
+- `chunk_score = ucb_agent * factual_agent * coherence_agent * chunk_relevance + novelty_bonus`
+
+This ensures the synthesizer can pick the best segments across agents rather than copying one full response.
+
+### Swarm feedback attribution (no bandit poisoning)
+
+Feedback is attributed proportionally to each agent based on how many selected chunks came from that agent:
+
+- `contribution_i = selected_chunks_i / total_selected_chunks`
+- `agent_reward_i = raw_feedback * contribution_i`
+
+Per-agent rewards are logged in `agent_reward_log`.
+
 ## Environment variables
 
 - `COLLAB_ENABLE_VOTING=1`

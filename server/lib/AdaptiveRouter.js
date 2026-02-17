@@ -4,9 +4,7 @@ import {
   getSimilarInteractionsByEmbedding,
 } from "./LearningDB.js";
 import { routableAgentIds } from "../agents.js";
-
-// UCB (Upper Confidence Bound) exploration parameter
-const UCB_C = Number(process.env.ROUTER_UCB_C || 0.35);
+import { computeUcbV2, normalizeScoresMinMax } from "./RouterV2.js";
 
 function safeNum(x, d = 0) {
   const n = Number(x);
@@ -16,29 +14,6 @@ function safeNum(x, d = 0) {
 function clamp01(x) {
   const n = safeNum(x, 0);
   return Math.max(0, Math.min(1, n));
-}
-
-export function computeUcbScores(statsRows) {
-  // statsRows: [{agent_name, pulls, mean_reward}]
-  const stats = {};
-  for (const r of statsRows) {
-    stats[r.agent_name] = {
-      pulls: Math.max(0, safeNum(r.pulls, 0)),
-      meanReward: clamp01(r.mean_reward),
-    };
-  }
-
-  const totalPulls = Object.values(stats).reduce((a, s) => a + (s.pulls || 0), 0);
-
-  const scores = {};
-  for (const id of routableAgentIds) {
-    const s = stats[id] || { pulls: 0, meanReward: 0.5 };
-    const pulls = s.pulls;
-    const mean = s.meanReward;
-    const bonus = pulls > 0 ? UCB_C * Math.sqrt(Math.log(totalPulls + 1) / pulls) : 0.35;
-    scores[id] = mean + bonus;
-  }
-  return scores;
 }
 
 function aggregateSimilarityVotes(similarRows) {
@@ -81,14 +56,16 @@ export async function selectAgentEmbeddingPlusBandit({
     }
   }
 
-  // 2) Bandit (UCB) over learned rewards
+  // 2) Bandit (UCB v2) over learned rewards
   const statsRows = getAgentStats();
-  const ucb = computeUcbScores(statsRows);
-  const ranked = Object.entries(ucb).sort((a, b) => b[1] - a[1]);
+  const usageCounts = {};
+  for (const r of statsRows) usageCounts[String(r.agent_name)] = Math.max(0, Number(r.pulls) || 0);
+  const noveltyScores = {};
+  const raw = await computeUcbV2(statsRows, noveltyScores, usageCounts, { T: 0 });
+  const norm = normalizeScoresMinMax(raw);
+  const ranked = Object.entries(norm).sort((a, b) => b[1] - a[1]);
   const top = ranked[0]?.[0];
-  if (top) {
-    return { agentId: top, reason: "bandit_ucb", queryEmbedding: qEmb };
-  }
+  if (top) return { agentId: top, reason: "bandit_ucb_v2", queryEmbedding: qEmb };
 
   // 3) Fallback to meta-router (LLM router)
   if (typeof metaRouterFallback === "function") {

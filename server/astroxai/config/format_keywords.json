@@ -1,0 +1,8 @@
+{
+  "table": ["table", "tabular", "compare in table", "differentiate in table"],
+  "chart": ["chart", "graph", "plot", "visualize"],
+  "list": ["list", "bullet", "bullets", "points", "enumerate"],
+  "steps": ["steps", "step by step", "procedure", "how to", "method"],
+  "code": ["code", "program", "script", "example", "snippet"],
+  "diagram": ["diagram", "flowchart", "architecture", "mermaid"]
+}

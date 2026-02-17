@@ -1,0 +1,5 @@
+ucb:
+  c: 1.4
+  alpha: 1.0
+  beta: 0.5
+  diversity_bonus: 0.2

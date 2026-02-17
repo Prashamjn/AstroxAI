@@ -11,10 +11,12 @@ import promptRoutes from "./routes/prompts.js";
 import feedbackRoutes from "./routes/feedback.js";
 import collabRoutes from "./routes/collab.js";
 import statsRoutes from "./routes/stats.js";
+import adminRoutes from "./routes/admin.js";
 import { agents, agentMeta } from "./agents.js";
 import * as PromptManager from "./lib/PromptManager.js";
 import * as ModelRouter from "./lib/ModelRouter.js";
 import { initLearningDB } from "./lib/LearningDB.js";
+import { initChunkTrainingDB } from "./astroxai/db/ChunkTrainingDB.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -45,9 +47,11 @@ app.use("/api/prompts", promptRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/collab", collabRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/admin", adminRoutes);
 
 async function start() {
   await initLearningDB();
+  await initChunkTrainingDB();
   await PromptManager.init();
   await ModelRouter.loadModelConfig();
   app.listen(PORT, () => {
